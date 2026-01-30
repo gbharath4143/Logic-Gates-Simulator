@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logic Gate Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gate-svg { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05)); }
+        .active-row { background-color: #eff6ff; font-weight: bold; color: #1d4ed8; }
+        .toggle-btn { transition: all 0.2s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl border border-slate-100">
+        <div class="text-center mb-8">
+            <h1 id="gateTitle" class="text-3xl font-extrabold text-slate-800 tracking-tight">AND Gate</h1>
+            <p id="gateExpression" class="text-blue-600 font-mono mt-2 font-bold">Y = A · B</p>
+        </div>
+
+        <!-- Selector: Follows User Specified Order -->
+        <div class="flex flex-wrap justify-center gap-2 mb-10">
+            <button onclick="setGate('AND')" class="gate-sel px-4 py-2 rounded-lg bg-slate-800 text-white font-medium shadow-md transition-colors">AND</button>
+            <button onclick="setGate('OR')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">OR</button>
+            <button onclick="setGate('NOT')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">NOT</button>
+            <button onclick="setGate('NAND')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">NAND</button>
+            <button onclick="setGate('NOR')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">NOR</button>
+            <button onclick="setGate('XOR')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">XOR</button>
+            <button onclick="setGate('XNOR')" class="gate-sel px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors">XNOR</button>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-12 items-center">
+            <!-- Simulation Area -->
+            <div class="flex flex-col items-center">
+                <div id="svgContainer" class="w-full h-44 flex items-center justify-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <!-- SVG injected here -->
+                </div>
+
+                <div class="flex gap-6 mt-8 w-full">
+                    <div class="flex-1 flex flex-col items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase mb-2">Input A</span>
+                        <button onclick="toggleInput('A')" id="btnA" class="toggle-btn w-16 h-8 bg-slate-200 rounded-full relative p-1 shadow-inner">
+                            <div class="dot w-6 h-6 bg-white rounded-full shadow transition-all duration-200 transform translate-x-0 flex items-center justify-center text-[10px] font-bold text-slate-400">0</div>
+                        </button>
+                    </div>
+                    <div id="inputBContainer" class="flex-1 flex flex-col items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase mb-2">Input B</span>
+                        <button onclick="toggleInput('B')" id="btnB" class="toggle-btn w-16 h-8 bg-slate-200 rounded-full relative p-1 shadow-inner">
+                            <div class="dot w-6 h-6 bg-white rounded-full shadow transition-all duration-200 transform translate-x-0 flex items-center justify-center text-[10px] font-bold text-slate-400">0</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Truth Table -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <h3 class="text-xs font-bold text-slate-400 uppercase mb-3 text-center tracking-widest">Truth Table</h3>
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-200">
+                            <th class="pb-2 font-semibold">A</th>
+                            <th id="thB" class="pb-2 font-semibold">B</th>
+                            <th class="pb-2 text-blue-600 font-bold">Y</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Table rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentGate = 'AND';
+        let stateA = 0;
+        let stateB = 0;
+
+        const gates = {
+            'AND':  { expr: 'Y = A · B',   logic: (a, b) => a && b },
+            'OR':   { expr: 'Y = A + B',   logic: (a, b) => a || b },
+            'NOT':  { expr: 'Y = Ā',       logic: (a) => !a, single: true },
+            'NAND': { expr: 'Y = (A · B)\'', logic: (a, b) => !(a && b) },
+            'NOR':  { expr: 'Y = (A + B)\'', logic: (a, b) => !(a || b) },
+            'XOR':  { expr: 'Y = A ⊕ B',   logic: (a, b) => a !== b },
+            'XNOR': { expr: 'Y = A ⊙ B',   logic: (a, b) => a === b }
+        };
+
+        function setGate(name) {
+            currentGate = name;
+            document.getElementById('gateTitle').innerText = name + " Gate";
+            document.getElementById('gateExpression').innerText = gates[name].expr;
+            
+            document.querySelectorAll('.gate-sel').forEach(btn => {
+                if(btn.innerText === name) {
+                    btn.classList.replace('bg-slate-100', 'bg-slate-800');
+                    btn.classList.replace('text-slate-600', 'text-white');
+                    btn.classList.add('shadow-md');
+                } else {
+                    btn.classList.replace('bg-slate-800', 'bg-slate-100');
+                    btn.classList.replace('text-white', 'text-slate-600');
+                    btn.classList.remove('shadow-md');
+                }
+            });
+
+            const isSingle = gates[name].single;
+            document.getElementById('inputBContainer').style.visibility = isSingle ? 'hidden' : 'visible';
+            document.getElementById('thB').style.display = isSingle ? 'none' : 'table-cell';
+
+            updateUI();
+        }
+
+        function toggleInput(input) {
+            if (input === 'A') stateA = stateA ? 0 : 1;
+            else stateB = stateB ? 0 : 1;
+            updateUI();
+        }
+
+        function updateUI() {
+            const gate = gates[currentGate];
+            const result = gate.logic(stateA, stateB) ? 1 : 0;
+
+            const updateBtn = (id, state) => {
+                const btn = document.getElementById(id);
+                const dot = btn.querySelector('.dot');
+                dot.innerText = state;
+                if (state) {
+                    btn.classList.replace('bg-slate-200', 'bg-blue-500');
+                    dot.classList.replace('translate-x-0', 'translate-x-8');
+                    dot.classList.replace('text-slate-400', 'text-blue-500');
+                } else {
+                    btn.classList.replace('bg-blue-500', 'bg-slate-200');
+                    dot.classList.replace('translate-x-8', 'translate-x-0');
+                    dot.classList.replace('text-blue-500', 'text-slate-400');
+                }
+            };
+            updateBtn('btnA', stateA);
+            updateBtn('btnB', stateB);
+
+            const strokeColor = "#334155";
+            const activeColor = "#3b82f6";
+            const offColor = "#cbd5e1";
+            
+            const colorA = stateA ? activeColor : offColor;
+            const colorB = stateB ? activeColor : offColor;
+            const colorY = result ? activeColor : offColor;
+
+            // Coordinate Mapping for precise alignment
+            // Middle Y is 75
+            // Input A top-align: 55
+            // Input B bottom-align: 95
+            // Input NOT/Single middle-align: 75
+
+            let path = "";
+            let startX = 60;
+            let endX = 140; // Default end of gate body
+            
+            if (currentGate === 'AND' || currentGate === 'NAND') {
+                path = 'M 60,40 V 110 H 90 A 35,35 0 0 0 90,40 Z';
+                endX = 125;
+            } else if (currentGate === 'OR' || currentGate === 'NOR' || currentGate === 'XOR' || currentGate === 'XNOR') {
+                path = 'M 60,40 Q 80,75 60,110 Q 120,110 150,75 Q 120,40 60,40';
+                endX = 150;
+                if (currentGate === 'XOR' || currentGate === 'XNOR') {
+                    path = 'M 52,40 Q 72,75 52,110 M 60,40 Q 80,75 60,110 Q 120,110 150,75 Q 120,40 60,40';
+                }
+            } else if (currentGate === 'NOT') {
+                path = 'M 60,45 L 60,105 L 110,75 Z';
+                endX = 110;
+            }
+
+            let bubble = "";
+            if (['NAND', 'NOR', 'NOT', 'XNOR'].includes(currentGate)) {
+                bubble = `<circle cx="${endX + 6}" cy="75" r="6" stroke="${strokeColor}" fill="white" stroke-width="2.5"/>`;
+                endX += 12; // Move output line start further
+            }
+
+            const inputLines = gate.single 
+                ? `<line x1="10" y1="75" x2="60" y2="75" stroke="${colorA}" stroke-width="4" stroke-linecap="round"/>`
+                : `
+                <line x1="10" y1="55" x2="60" y2="55" stroke="${colorA}" stroke-width="4" stroke-linecap="round"/>
+                <line x1="10" y1="95" x2="60" y2="95" stroke="${colorB}" stroke-width="4" stroke-linecap="round"/>
+                <text x="5" y="50" class="text-[10px] font-bold fill-slate-400">A</text>
+                <text x="5" y="90" class="text-[10px] font-bold fill-slate-400">B</text>
+                `;
+
+            document.getElementById('svgContainer').innerHTML = `
+                <svg viewBox="0 0 200 150" class="w-full h-full gate-svg">
+                    ${inputLines}
+                    <path d="${path}" stroke="${strokeColor}" fill="none" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+                    ${bubble}
+                    <line x1="${endX}" y1="75" x2="190" y2="75" stroke="${colorY}" stroke-width="4" stroke-linecap="round"/>
+                    <text x="195" y="70" text-anchor="end" class="text-[10px] font-bold fill-slate-400">Y</text>
+                    <rect x="175" y="85" width="15" height="15" rx="3" fill="${colorY}"/>
+                    <text x="182.5" y="96" text-anchor="middle" class="text-[9px] font-bold fill-white">${result}</text>
+                </svg>
+            `;
+
+            const combinations = gate.single ? [[0]] : [[0,0], [0,1], [1,0], [1,1]];
+            let html = "";
+            combinations.forEach(combo => {
+                const a = combo[0];
+                const b = combo[1];
+                const res = gate.logic(a, b) ? 1 : 0;
+                const isActive = gate.single ? (stateA === a) : (stateA === a && stateB === b);
+                
+                html += `<tr class="${isActive ? 'active-row' : ''} transition-colors">
+                    <td class="py-2 border-t border-slate-100">${a}</td>
+                    ${gate.single ? "" : `<td class="py-2 border-t border-slate-100">${b}</td>`}
+                    <td class="py-2 border-t border-slate-100">${res}</td>
+                </tr>`;
+            });
+            document.getElementById('tableBody').innerHTML = html;
+        }
+
+        setGate('AND');
+    </script>
+</body>
+</html>
